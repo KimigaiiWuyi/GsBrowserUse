@@ -1,0 +1,9 @@
+[project]
+name = "gs-browser-use"
+version = "0.1.0"
+description = "给 GsCore Agent 用的浏览器。可选 Obscura 或 Lightpanda，按用户隔离页面。"
+authors = [{ name = "KimigaiiWuyi", email = "444835641@qq.com" }]
+dependencies = ["httpx>=0.23.0"]
+requires-python = ">=3.11,<4.0"
+readme = "README.md"
+license = { text = "GPL-3.0-or-later" }
