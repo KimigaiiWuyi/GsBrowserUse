@@ -249,3 +249,72 @@ def test_same_user_reuses_the_open_page() -> None:
             await pool.shutdown()
 
     assert asyncio.run(_run()) == 1
+
+
+def test_browser_shot_auto_registers_in_kanban(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from unittest.mock import MagicMock
+    from pydantic_ai import RunContext
+    from sqlalchemy.pool import NullPool
+    from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+    from sqlmodel import SQLModel
+
+    import gsuid_core.utils.database.base_models as base_models
+    from gsuid_core.ai_core.models import ToolContext
+    from gsuid_core.ai_core.planning.models import AIAgentTask, AIAgentArtifact
+    from gsuid_core.ai_core.planning.runtime import (
+        PlanRunContext,
+        bind_plan_context,
+        reset_plan_context,
+    )
+    from GsBrowserUse.gsbrowseruse_agent.tools import browser_shot
+
+    engine = create_async_engine(
+        f"sqlite+aiosqlite:///{(tmp_path / 'artifacts.db').as_posix()}",
+        poolclass=NullPool,
+    )
+    monkeypatch.setattr(
+        base_models,
+        "async_maker",
+        async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession),
+    )
+    monkeypatch.setattr(base_models, "sqlite_read_semaphore", None)
+    monkeypatch.setattr(base_models, "_db_type", "sqlite")
+
+    async def _init_tables() -> None:
+        async with engine.begin() as conn:
+            await conn.run_sync(SQLModel.metadata.create_all)
+
+    asyncio.run(_init_tables())
+
+    ws = tmp_path / "browser_ws"
+    ws.mkdir()
+    plan_ctx = PlanRunContext(
+        root_task_id="root_shot_test",
+        task_id="task_shot_test",
+        agent_profile="browser_agent",
+        artifact_workspace=ws,
+    )
+    token = bind_plan_context(plan_ctx)
+
+    try:
+        ev = Event(user_id="test_user_42", user_pm=0)
+        tool_ctx = ToolContext(ev=ev)
+        run_ctx = MagicMock(spec=RunContext)
+        run_ctx.deps = tool_ctx
+
+        async def fake_shot(pool: object, key: str, path: Path) -> str:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(b"FAKE_BROWSER_SHOT_BYTES")
+            return f"截图文件：{path}\n正文内容..."
+
+        monkeypatch.setattr("GsBrowserUse.gsbrowseruse_agent.tools.shot", fake_shot)
+
+        result = asyncio.run(browser_shot(run_ctx))
+        assert "✅ 截图已自动登记为图片产物:" in result
+        assert "上游可直接发送" in result
+
+        shot_files = list(ws.glob("shot_*.png"))
+        assert len(shot_files) == 1
+        assert shot_files[0].read_bytes() == b"FAKE_BROWSER_SHOT_BYTES"
+    finally:
+        reset_plan_context(token)
