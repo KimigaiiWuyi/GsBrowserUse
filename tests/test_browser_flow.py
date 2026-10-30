@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from pathlib import Path
 
 import pytest
 from quiz_walk import walk_until
@@ -253,14 +254,15 @@ def test_same_user_reuses_the_open_page() -> None:
 
 def test_browser_shot_auto_registers_in_kanban(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     from unittest.mock import MagicMock
+
+    from sqlmodel import SQLModel
     from pydantic_ai import RunContext
     from sqlalchemy.pool import NullPool
     from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-    from sqlmodel import SQLModel
 
     import gsuid_core.utils.database.base_models as base_models
     from gsuid_core.ai_core.models import ToolContext
-    from gsuid_core.ai_core.planning.models import AIAgentTask, AIAgentArtifact
+    from gsuid_core.ai_core.planning.models import AIAgentTask, AIAgentArtifact  # noqa: F401
     from gsuid_core.ai_core.planning.runtime import (
         PlanRunContext,
         bind_plan_context,
