@@ -113,7 +113,17 @@ def test_serve_commands_stay_on_the_engine() -> None:
     obscura = OBSCURA.serve_args(Path("obscura"), 9, stealth=False, private_network=False, fonts="")
     assert "--storage-dir" not in obscura
     assert "--workers" in obscura
-    lightpanda = LIGHTPANDA.serve_args(Path("lightpanda"), 9, stealth=True, private_network=True, fonts="C:/fonts")
+    assert "--proxy" not in obscura
+
+    obscura_proxy = OBSCURA.serve_args(
+        Path("obscura"), 9, stealth=False, private_network=False, fonts="", proxy="http://127.0.0.1:7890"
+    )
+    assert "--proxy" in obscura_proxy
+    assert obscura_proxy[obscura_proxy.index("--proxy") + 1] == "http://127.0.0.1:7890"
+
+    lightpanda = LIGHTPANDA.serve_args(
+        Path("lightpanda"), 9, stealth=True, private_network=True, fonts="C:/fonts", proxy="http://127.0.0.1:7890"
+    )
     assert lightpanda == [str(Path("lightpanda")), "serve", "--host", "127.0.0.1", "--port", "9"]
 
 

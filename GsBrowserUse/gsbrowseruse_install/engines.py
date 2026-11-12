@@ -60,6 +60,7 @@ class BrowserEngine(Protocol):
         stealth: bool,
         private_network: bool,
         fonts: str,
+        proxy: str = "",
     ) -> list[str]: ...
 
 
@@ -98,6 +99,7 @@ class ObscuraEngine:
         stealth: bool,
         private_network: bool,
         fonts: str,
+        proxy: str = "",
     ) -> list[str]:
         # 不传 --storage-dir：那是进程级 cookie，用户之间会串。
         cmd = [
@@ -117,6 +119,8 @@ class ObscuraEngine:
             cmd.append("--allow-private-network")
         if fonts and Path(fonts).is_dir():
             cmd.extend(["--font-dir", fonts])
+        if proxy:
+            cmd.extend(["--proxy", proxy])
         return cmd
 
 
@@ -150,8 +154,9 @@ class LightpandaEngine:
         stealth: bool,
         private_network: bool,
         fonts: str,
+        proxy: str = "",
     ) -> list[str]:
-        del stealth, private_network, fonts
+        del stealth, private_network, fonts, proxy
         return [str(binary), "serve", "--host", "127.0.0.1", "--port", str(port)]
 
 

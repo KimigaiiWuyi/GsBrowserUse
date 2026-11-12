@@ -252,9 +252,44 @@ async def browser_shot(ctx: RunContext[ToolContext]) -> str:
         ctx: 工具上下文
     """
     from pathlib import Path
+    from datetime import datetime
 
-    path = Path(_shot_path(user_key(ctx.deps.ev)))
-    return await _guard(shot(get_pool(), user_key(ctx.deps.ev), path))
+    from gsuid_core.ai_core.planning.models import AIAgentTask
+    from gsuid_core.ai_core.planning.runtime import get_plan_context
+    from gsuid_core.ai_core.planning.workspace import put_artifact
+
+    plan_ctx = get_plan_context()
+    workspace = plan_ctx.artifact_workspace if plan_ctx else None
+
+    if workspace is not None:
+        workspace.mkdir(parents=True, exist_ok=True)
+        safe = "".join(ch if ch.isalnum() else "_" for ch in user_key(ctx.deps.ev))[:40]
+        stamp = datetime.now().strftime("%Y%m%d%H%M%S")
+        path = workspace / f"shot_{safe}-{stamp}.png"
+    else:
+        path = Path(_shot_path(user_key(ctx.deps.ev)))
+
+    result = await _guard(shot(get_pool(), user_key(ctx.deps.ev), path))
+
+    # 在 Kanban 任务上下文中且截图成功落盘时，自动登记为真实图片 artifact
+    if workspace is not None and plan_ctx is not None and path.exists() and path.is_file():
+        art = await put_artifact(
+            summary=f"浏览器截图: {path.name}",
+            mime="image/png",
+            artifact_kind="output",
+            plan_ctx=plan_ctx,
+            file_path=path,
+        )
+        if art is not None:
+            await AIAgentTask.update_data_by_data(
+                select_data={"id": plan_ctx.task_id},
+                update_data={"output_artifact_id": art.id},
+            )
+            return (
+                f"✅ 截图已自动登记为图片产物: {art.id}（{art.size_bytes} bytes，"
+                f"文件：{path.name}，上游可直接发送）\n{result}"
+            )
+    return result
 
 
 @ai_tools(

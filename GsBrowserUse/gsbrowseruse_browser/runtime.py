@@ -18,6 +18,7 @@ from gsuid_core.logger import logger
 from .page import PlaywrightPage
 from .driver import PageDriver
 from .errors import BrowserNotReady
+from ..gsbrowseruse_config.proxy import resolve_proxy
 from ..gsbrowseruse_config.config import font_dir, flag_bool
 from ..gsbrowseruse_install.engines import Asset, BrowserEngine, get_engine
 from ..gsbrowseruse_install.manifest import read_manifest, install_problem
@@ -79,7 +80,8 @@ class Runtime:
                 asset = engine.resolve(sys.platform, platform.machine(), stealth)
             except RuntimeError as exc:
                 raise BrowserNotReady(str(exc)) from exc
-            proc = await _spawn(binary, port, engine, asset, stealth)
+            proxy = resolve_proxy()
+            proc = await _spawn(binary, port, engine, asset, stealth, proxy=proxy)
             self._proc = proc
             self._port = port
             self._remember_streams(proc)
@@ -93,7 +95,8 @@ class Runtime:
                 raise BrowserNotReady(f"连不上浏览器：{exc}") from exc
             self._playwright = playwright
             self._browser = browser
-            logger.info(f"[GsBrowserUse] 已在 127.0.0.1:{port} 启动，引擎 {engine.engine_id}")
+            proxy_hint = f"，代理 {proxy}" if proxy else ""
+            logger.info(f"[GsBrowserUse] 已在 127.0.0.1:{port} 启动，引擎 {engine.engine_id}{proxy_hint}")
             return browser
 
     def _alive(self) -> bool:
@@ -121,7 +124,7 @@ class Runtime:
     async def _wait_ready(self, proc: asyncio.subprocess.Process, port: int) -> None:
         url = f"http://127.0.0.1:{port}/json/version"
         deadline = asyncio.get_running_loop().time() + 20
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(trust_env=False) as client:
             while asyncio.get_running_loop().time() < deadline:
                 if proc.returncode is not None:
                     raise BrowserNotReady(self._exit_message(proc.returncode))
@@ -191,6 +194,7 @@ async def _spawn(
     engine: BrowserEngine,
     asset: Asset,
     stealth: bool,
+    proxy: str = "",
 ) -> asyncio.subprocess.Process:
     worker_ready = asset.worker is None or (binary.parent / asset.worker).is_file()
     if binary.name != asset.program or not worker_ready:
@@ -201,6 +205,7 @@ async def _spawn(
         stealth=stealth,
         private_network=flag_bool("allow_private_network", False),
         fonts=font_dir(),
+        proxy=proxy,
     )
     if sys.platform == "win32":
         # 0x08000000 = CREATE_NO_WINDOW，避免弹出黑色控制台。

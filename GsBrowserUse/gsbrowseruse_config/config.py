@@ -81,6 +81,16 @@ CONFIG_DEFAULT: dict[str, GSC] = {
         desc="只对 Obscura 生效。截图里的中文需要这个目录下的字体。留空则不指定。",
         data=str(FONT_ORIGIN_PATH.parent),
     ),
+    "proxy": GsStrConfig(
+        title="自定义代理",
+        desc="手动指定 HTTP/SOCKS 代理地址（例如 http://127.0.0.1:7890）。留空时按「自动检测系统代理」设置处理。",
+        data="",
+    ),
+    "auto_detect_proxy": GsBoolConfig(
+        title="自动检测系统代理",
+        desc="当自定义代理为空时，自动检测系统代理（Windows 注册表系统代理、环境变量 HTTP_PROXY 等）。",
+        data=True,
+    ),
 }
 
 CONFIG = StringConfig("GsBrowserUse", ROOT / "config.json", CONFIG_DEFAULT)
@@ -129,3 +139,14 @@ def font_dir() -> str:
     if isinstance(item, GsStrConfig):
         return item.data.strip()
     return ""
+
+
+def proxy_setting() -> str:
+    item = CONFIG.get_config("proxy")
+    if isinstance(item, GsStrConfig):
+        return item.data.strip()
+    return ""
+
+
+def auto_detect_proxy_enabled() -> bool:
+    return flag_bool("auto_detect_proxy", True)
